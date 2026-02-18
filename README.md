@@ -28,5 +28,9 @@ http://localhost:8000/demos/java_class/
 - Download Main.java
 - Buttons to center, zoom in, zoom out of environment
 
+
+## Author
+PSU student - Jayson Troxel
+
 ## Credits
 https://github.com/toebes-extreme/blockly
