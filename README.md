@@ -3,13 +3,19 @@
 A modified version of Blockly configured for introductory Java programming courses. This tool is a great way to visually learn how Java programming works.
 
 ## Purpose
-This version adds Java functionality within Blockly. It also adds categorized Add buttons for reliability on student laptops.
+This version adds Java functionality to Blockly. Simple way to learn Java basics and generate java code.
+
+## Tools Needed
+
+- git
+- python3
+- Terminal/PowerShell
 
 ## Setup Commands (MacOS / Windows)
 
-git clone https://github.com/yourusername/blockly-java-generator.git
-cd blockly-java-generator
-python3 -m http.server 8000
+- git clone https://github.com/jpt5832/blockly-java-generator.git
+- cd blockly-java-generator
+- python3 -m http.server 8000
 
 Open (after server has been started):
 http://localhost:8000/demos/java_class/
