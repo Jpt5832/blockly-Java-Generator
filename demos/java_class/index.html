@@ -120,7 +120,7 @@
     }
 
     #codeArea {
-      height: 240px;
+      height: 260px;
       width: 100%;
       border: 0;
       border-top: 1px solid #ddd;
@@ -130,9 +130,11 @@
       font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
       font-size: 13px;
       outline: none;
+      white-space: pre;
     }
 
     .tip {
+      margin-top: 10px;
       font-size: 12px;
       color: #555;
       line-height: 1.35;
@@ -145,7 +147,7 @@
   <div id="header">
     <h2>Blockly → Java (Buttons-Only Class Mode)</h2>
 
-    <span class="toggle" title="Unchecked: classroom output (wrapped in main). Checked: raw full generator output.">
+    <span class="toggle" title="Unchecked: show student code only. Checked: show full generator output (includes runtime).">
       <input type="checkbox" id="toggleFull">
       <label for="toggleFull">Show full code</label>
     </span>
@@ -211,12 +213,13 @@
           <button id="btnVarInc">+ Change Var</button>
           <button id="btnVarCreate">+ New Var</button>
         </div>
+
+        <div class="tip">
+          Tip: The sidebar is for adding blocks reliably. Students can still drag blocks
+          <b>inside the workspace</b> to snap them together.
+        </div>
       </div>
 
-      <div class="tip">
-        Tip: the sidebar is for adding blocks reliably. Students can still drag blocks
-        <b>inside the workspace</b> to snap them together.
-      </div>
     </div>
 
     <!-- RIGHT: workspace + output -->
@@ -238,7 +241,7 @@
       log("JS ERROR: " + (e.message || e) + (e.filename ? (" @ " + e.filename + ":" + e.lineno) : ""));
     });
 
-    // Workspace WITHOUT toolbox (no flyout / no drag-from-left)
+    // Workspace WITHOUT toolbox (no flyout)
     var workspace = Blockly.inject('blocklyDiv', {
       trashcan: true,
       scrollbars: true,
@@ -252,17 +255,17 @@
       }
     });
 
-    // Prevent wheel/trackpad scroll from hijacking interactions
+    // Prevent wheel/trackpad scrolling from causing weird behavior
     document.getElementById('blocklyDiv').addEventListener('wheel', function(e) {
       e.preventDefault();
     }, { passive: false });
 
     setTimeout(function () {
       if (typeof Blockly.svgResize === 'function') Blockly.svgResize(workspace);
-      log("Workspace ready.");
+      log("✅ Workspace ready.");
       log("Blockly version: " + (Blockly.VERSION || "unknown"));
       log("Java generator present: " + (Blockly.Java ? "YES" : "NO"));
-      log("Classroom output mode: trims runtime + wraps statements in main().");
+      log("Default output: STUDENT-FRIENDLY code only (toggle shows full runtime).");
     }, 0);
 
     window.addEventListener('resize', function () {
@@ -297,7 +300,7 @@
     function safeAdd(type, fields) {
       try {
         if (!Blockly.Blocks || !Blockly.Blocks[type]) {
-          log("Block type not found: " + type);
+          log("❌ Block type not found: " + type);
           return null;
         }
         var b = createBlock(type);
@@ -306,10 +309,10 @@
             try { b.setFieldValue(fields[k], k); } catch (e) {}
           }
         }
-        log("Added: " + type);
+        log("➕ Added: " + type);
         return b;
       } catch (e) {
-        log("Add failed (" + type + "): " + e);
+        log("❌ Add failed (" + type + "): " + e);
         return null;
       }
     }
@@ -325,9 +328,9 @@
         if (typeof b.updateShape_ === 'function') b.updateShape_();
         if (typeof b.initSvg === 'function') b.initSvg();
         if (typeof b.render === 'function') b.render();
-        log("Updated controls_if to include ELSE.");
+        log("➕ Updated controls_if to include ELSE.");
       } catch (e) {
-        log("Could not auto-add ELSE. Use the if-block mutator (gear) if present.");
+        log("ℹ️ Could not auto-add ELSE on this build. Use the mutator (gear) if available.");
       }
     }
 
@@ -337,7 +340,7 @@
       for (var i = 0; i < candidates.length; i++) {
         if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
       }
-      log("No variable SET block found.");
+      log("❌ No variable SET block found.");
       return null;
     }
 
@@ -346,7 +349,7 @@
       for (var i = 0; i < candidates.length; i++) {
         if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
       }
-      log("No variable GET block found.");
+      log("❌ No variable GET block found.");
       return null;
     }
 
@@ -355,7 +358,7 @@
       for (var i = 0; i < candidates.length; i++) {
         if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
       }
-      log("No variable change block found (math_change).");
+      log("❌ No variable change block found (math_change).");
       return null;
     }
 
@@ -363,97 +366,151 @@
       workspace.clear();
       nextX = 40; nextY = 40;
       document.getElementById('codeArea').value = '';
-      log("Cleared workspace.");
+      log("🧹 Cleared workspace.");
     }
 
-    // Trim away giant helper/runtime code by starting at package or public class
-    function trimToFileStart(fullCode) {
-      if (!fullCode) return "";
+    // --- Runtime split (hide huge chunk) ---
+    function splitStudentAndRuntime(fullCode) {
+      if (!fullCode) return { student: "", runtime: "" };
 
-      var pkgIdx = fullCode.lastIndexOf("\npackage ");
-      if (pkgIdx === -1) {
-        if (fullCode.indexOf("package ") === 0) pkgIdx = 0;
-      } else {
-        pkgIdx = pkgIdx + 1;
+      // Common runtime markers found in this fork output.
+      var markers = [
+        "\nfinal class Var ",
+        "\nclass Var ",
+        "\nenum Var ",
+        "\nfinal class Runtime ",
+        "\nclass Runtime ",
+        "\nfinal class Blockly",
+        "\nclass Blockly"
+      ];
+
+      var cut = -1;
+      for (var i = 0; i < markers.length; i++) {
+        var idx = fullCode.indexOf(markers[i]);
+        if (idx !== -1 && (cut === -1 || idx < cut)) cut = idx;
       }
-      if (pkgIdx !== -1) return fullCode.substring(pkgIdx).trim();
 
-      var clsIdx = fullCode.indexOf("public class ");
-      if (clsIdx !== -1) return fullCode.substring(clsIdx).trim();
+      if (cut === -1) {
+        return { student: fullCode.trim(), runtime: "" };
+      }
 
-      return fullCode.trim();
+      return {
+        student: fullCode.substring(0, cut).trim(),
+        runtime: fullCode.substring(cut).trim()
+      };
+    }
+
+    // --- Student-ifier: remove package/imports + class wrapper + comments + simplify Var.valueOf(...) patterns ---
+    function studentify(code) {
+      if (!code) return "";
+
+      var s = code;
+
+      // Remove package line
+      s = s.replace(/^\s*package\s+[\w.]+\s*;\s*$/gmi, "");
+
+      // Remove ALL imports
+      s = s.replace(/^\s*import\s+[\w.*]+\s*;\s*$/gmi, "");
+
+      // Remove /* ... */ block comments (including /** ... */)
+      s = s.replace(/\/\*[\s\S]*?\*\//g, "");
+
+      // Remove common "end while" style line comments
+      s = s.replace(/^\s*\/\/\s*end\s+.*$/gmi, "");
+
+      // Remove wrapper class (e.g., public class MyApp { ... } or class MyApp { ... })
+      // Prefer public-class match first; fall back to non-public class.
+      var classMatch = s.match(/public\s+class\s+\w+\s*\{([\s\S]*)\}\s*$/m);
+      if (!classMatch || !classMatch[1]) {
+        classMatch = s.match(/(?:^|\n)\s*class\s+\w+\s*\{([\s\S]*)\}\s*$/m);
+      }
+      if (classMatch && classMatch[1]) {
+        s = classMatch[1];
+      }
+
+      // Remove method wrapper like: public static void main(...) { ... } (if generator made one)
+      var mainMatch = s.match(/public\s+static\s+void\s+main\s*\(\s*String\[\]\s*\w+\s*\)\s*\{([\s\S]*)\}\s*$/m);
+      if (mainMatch && mainMatch[1]) {
+        s = mainMatch[1];
+      }
+
+      // Convert: !Var.valueOf(x).equals(10)  ->  (x != 10)
+      s = s.replace(/!\s*Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.equals\(\s*([^)]+?)\s*\)/g,
+                    "($1 != $2)");
+
+      // Convert: Var.valueOf(x).equals(10) -> (x == 10)
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.equals\(\s*([^)]+?)\s*\)/g,
+                    "($1 == $2)");
+
+      // Remove .toString() on string literals: "hi".toString() -> "hi"
+      s = s.replace(/"([^"\\]*(\\.[^"\\]*)*)"\.toString\(\)/g, "\"$1\"");
+
+      // Remove access modifiers at start of lines (so declarations can live in main if needed)
+      s = s.replace(/^\s*(public|private|protected)\s+/gmi, "");
+
+      // Remove any stray lone braces lines
+      s = s.replace(/^\s*\{\s*$/gmi, "");
+      s = s.replace(/^\s*\}\s*$/gmi, "");
+
+      // Clean up extra blank lines
+      s = s.replace(/^\s*\n/gm, "");
+      s = s.trim();
+
+      return s;
     }
 
     function indentLines(text, spaces) {
       var pad = "";
       for (var i = 0; i < spaces; i++) pad += " ";
       return text.split("\n").map(function(line) {
-        return line.trim().length ? (pad + line) : line;
+        return line.trim().length ? (pad + line.trim()) : "";
       }).join("\n");
     }
 
-    // Wrap student statements into valid Java main() for classroom use
-    function wrapInMain(trimmedFile) {
-      if (!trimmedFile) return "";
-
-      var pkgLine = "";
-      var rest = trimmedFile;
-
-      var pkgMatch = rest.match(/^\s*package\s+[^;]+;\s*/);
-      if (pkgMatch) {
-        pkgLine = pkgMatch[0].trim();
-        rest = rest.substring(pkgMatch[0].length);
-      }
-
-      var classIdx = rest.indexOf("public class ");
-      var body = "";
-
-      if (classIdx !== -1) {
-        var openBrace = rest.indexOf("{", classIdx);
-        var closeBrace = rest.lastIndexOf("}");
-        if (openBrace !== -1 && closeBrace !== -1 && closeBrace > openBrace) {
-          body = rest.substring(openBrace + 1, closeBrace).trim();
-        } else {
-          body = rest.substring(classIdx).trim();
-        }
-      } else {
-        body = rest.trim();
-      }
-
-      body = body.replace(/^\s*{\s*/, "").replace(/\s*}\s*$/, "").trim();
-
+    // Wrap student code into beginner-friendly Main.main()
+    function wrapInMain(studentOnly) {
+      var body = (studentOnly || "").trim();
       var mainBody = body ? indentLines(body, 4) : "";
 
-      return (pkgLine ? (pkgLine + "\n\n") : "") +
+      return (
         "public class Main {\n" +
         "  public static void main(String[] args) {\n" +
         (mainBody ? (mainBody + "\n") : "") +
         "  }\n" +
-        "}\n";
+        "}\n"
+      );
     }
 
     function generateJava() {
       try {
         if (!Blockly.Java) {
-          log("Blockly.Java is NOT defined. java_compressed.js may not be loading.");
+          log("❌ Blockly.Java is NOT defined. java_compressed.js may not be loading.");
           return;
         }
+
         var full = Blockly.Java.workspaceToCode(workspace) || "";
         var showFull = document.getElementById('toggleFull').checked;
 
         if (showFull) {
           document.getElementById('codeArea').value = full;
-          log("Generated FULL Java. chars=" + full.length);
+          log("✅ Generated FULL output (includes runtime). chars=" + full.length);
           return;
         }
 
-        var trimmed = trimToFileStart(full);
-        var wrapped = wrapInMain(trimmed);
+        var parts = splitStudentAndRuntime(full);
+        var student = studentify(parts.student);
+        var wrapped = wrapInMain(student);
 
         document.getElementById('codeArea').value = wrapped;
-        log("Generated classroom Java. Full chars=" + full.length + ", shown chars=" + wrapped.length);
+
+        log("✅ Generated STUDENT-FRIENDLY code (runtime hidden).");
+        log("Full chars=" + full.length +
+            " | student raw chars=" + parts.student.length +
+            " | student cleaned chars=" + student.length +
+            " | shown chars=" + wrapped.length +
+            (parts.runtime ? (" | runtime hidden chars=" + parts.runtime.length) : ""));
       } catch (e) {
-        log("Generate Java failed: " + e);
+        log("❌ Generate Java failed: " + e);
       }
     }
 
@@ -462,7 +519,7 @@
 
       var contents = document.getElementById('codeArea').value || "";
       if (!contents.trim()) {
-        log("Nothing to download yet. Add blocks and generate first.");
+        log("❌ Nothing to download yet. Add blocks and generate first.");
         return;
       }
 
@@ -477,7 +534,7 @@
       document.body.removeChild(a);
 
       URL.revokeObjectURL(url);
-      log("Downloaded Main.java (" + contents.length + " chars).");
+      log("⬇️ Downloaded Main.java (" + contents.length + " chars).");
     }
 
     // ---- Sidebar wiring ----
@@ -492,7 +549,7 @@
     document.getElementById('btnWhile').addEventListener('click', function () { safeAdd('controls_whileUntil'); });
     document.getElementById('btnFor').addEventListener('click', function () { safeAdd('controls_for'); });
     document.getElementById('btnBreakNA').addEventListener('click', function () {
-      log("Break/Continue blocks are not included in this basic setup.");
+      log("ℹ️ Break/Continue blocks not included in this basic setup.");
     });
 
     document.getElementById('btnNumber').addEventListener('click', function () { safeAdd('math_number', {NUM: '10'}); });
@@ -509,7 +566,7 @@
     document.getElementById('btnVarGet').addEventListener('click', safeAddVarGet);
     document.getElementById('btnVarInc').addEventListener('click', safeAddVarChange);
     document.getElementById('btnVarCreate').addEventListener('click', function () {
-      log("Use 'Set Var' then rename the variable dropdown to create new names.");
+      log("ℹ️ Use 'Set Var' then rename the variable dropdown to create new names.");
     });
 
     document.getElementById('btnGen').addEventListener('click', generateJava);
@@ -519,4 +576,3 @@
 
 </body>
 </html>
-
