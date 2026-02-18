@@ -1,0 +1,522 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Blockly → Java (Buttons-Only Class Mode)</title>
+
+  <!-- Blockly Core -->
+  <script src="../../blockly_compressed.js"></script>
+  <script src="../../blocks_compressed.js"></script>
+
+  <!-- Java generator for this fork (repo root) -->
+  <script src="../../java_compressed.js"></script>
+
+  <!-- Messages -->
+  <script src="../../msg/js/en.js"></script>
+
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
+      font-family: Arial, sans-serif;
+    }
+    body { display: flex; flex-direction: column; }
+
+    #header {
+      padding: 10px;
+      background: #f5f5f5;
+      border-bottom: 1px solid #ccc;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #header h2 {
+      margin: 0;
+      font-size: 18px;
+      white-space: nowrap;
+    }
+    #header .spacer { flex: 1 1 auto; }
+
+    button, label { font-size: 13px; }
+    button { padding: 6px 10px; cursor: pointer; }
+
+    .toggle {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      padding: 4px 6px;
+      background: #fff;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      white-space: nowrap;
+    }
+
+    #layout {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+    }
+
+    #sidebar {
+      width: 280px;
+      border-right: 1px solid #ccc;
+      background: #fafafa;
+      padding: 10px;
+      box-sizing: border-box;
+      overflow: auto;
+    }
+
+    .group {
+      margin-bottom: 12px;
+      border: 1px solid #ddd;
+      background: #fff;
+      border-radius: 6px;
+      padding: 10px;
+    }
+    .group h3 {
+      margin: 0 0 8px 0;
+      font-size: 14px;
+    }
+
+    .btnGrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .btnGrid button {
+      width: 100%;
+      text-align: left;
+    }
+
+    #main {
+      flex: 1;
+      min-width: 0;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    #blocklyDiv {
+      flex: 1;
+      min-height: 0;
+      border-bottom: 1px solid #ccc;
+      touch-action: none;
+    }
+    .blocklySvg { touch-action: none; }
+
+    #status {
+      border: 0;
+      border-top: 1px solid #ddd;
+      padding: 8px 10px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 12px;
+      background: #fff;
+      white-space: pre-wrap;
+      height: 80px;
+      overflow: auto;
+    }
+
+    #codeArea {
+      height: 240px;
+      width: 100%;
+      border: 0;
+      border-top: 1px solid #ddd;
+      padding: 10px;
+      box-sizing: border-box;
+      resize: none;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size: 13px;
+      outline: none;
+    }
+
+    .tip {
+      font-size: 12px;
+      color: #555;
+      line-height: 1.35;
+    }
+  </style>
+</head>
+
+<body>
+
+  <div id="header">
+    <h2>Blockly → Java (Buttons-Only Class Mode)</h2>
+
+    <span class="toggle" title="Unchecked: classroom output (wrapped in main). Checked: raw full generator output.">
+      <input type="checkbox" id="toggleFull">
+      <label for="toggleFull">Show full code</label>
+    </span>
+
+    <div class="spacer"></div>
+
+    <button id="btnGen">Generate Java</button>
+    <button id="btnDownload">Download Main.java</button>
+    <button id="btnClear">Clear</button>
+  </div>
+
+  <div id="layout">
+    <!-- LEFT: categorized add buttons -->
+    <div id="sidebar">
+
+      <div class="group">
+        <h3>Logic</h3>
+        <div class="btnGrid">
+          <button id="btnIf">+ If</button>
+          <button id="btnIfElse">+ If / Else</button>
+          <button id="btnCompare">+ Compare</button>
+          <button id="btnAndOr">+ And/Or</button>
+          <button id="btnNot">+ Not</button>
+          <button id="btnBool">+ true/false</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Loops</h3>
+        <div class="btnGrid">
+          <button id="btnRepeat">+ Repeat</button>
+          <button id="btnWhile">+ While</button>
+          <button id="btnFor">+ For</button>
+          <button id="btnBreakNA">+ (N/A)</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Math</h3>
+        <div class="btnGrid">
+          <button id="btnNumber">+ Number</button>
+          <button id="btnAdd">+ A + B</button>
+          <button id="btnSub">+ A - B</button>
+          <button id="btnMul">+ A x B</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Text</h3>
+        <div class="btnGrid">
+          <button id="btnPrint">+ Print</button>
+          <button id="btnText">+ "text"</button>
+          <button id="btnJoin">+ Join</button>
+          <button id="btnLength">+ Length</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Variables</h3>
+        <div class="btnGrid">
+          <button id="btnVarSet">+ Set Var</button>
+          <button id="btnVarGet">+ Get Var</button>
+          <button id="btnVarInc">+ Change Var</button>
+          <button id="btnVarCreate">+ New Var</button>
+        </div>
+      </div>
+
+      <div class="tip">
+        Tip: the sidebar is for adding blocks reliably. Students can still drag blocks
+        <b>inside the workspace</b> to snap them together.
+      </div>
+    </div>
+
+    <!-- RIGHT: workspace + output -->
+    <div id="main">
+      <div id="blocklyDiv"></div>
+      <div id="status">Status will appear here…</div>
+      <textarea id="codeArea" tabindex="-1" placeholder="Generated Java code will appear here..."></textarea>
+    </div>
+  </div>
+
+  <script>
+    function log(msg) {
+      var el = document.getElementById('status');
+      el.textContent = (el.textContent ? el.textContent + "\n" : "") + msg;
+      el.scrollTop = el.scrollHeight;
+    }
+
+    window.addEventListener('error', function (e) {
+      log("JS ERROR: " + (e.message || e) + (e.filename ? (" @ " + e.filename + ":" + e.lineno) : ""));
+    });
+
+    // Workspace WITHOUT toolbox (no flyout / no drag-from-left)
+    var workspace = Blockly.inject('blocklyDiv', {
+      trashcan: true,
+      scrollbars: true,
+      zoom: {
+        controls: true,
+        wheel: false,
+        startScale: 1.0,
+        maxScale: 3,
+        minScale: 0.3,
+        scaleSpeed: 1.2
+      }
+    });
+
+    // Prevent wheel/trackpad scroll from hijacking interactions
+    document.getElementById('blocklyDiv').addEventListener('wheel', function(e) {
+      e.preventDefault();
+    }, { passive: false });
+
+    setTimeout(function () {
+      if (typeof Blockly.svgResize === 'function') Blockly.svgResize(workspace);
+      log("Workspace ready.");
+      log("Blockly version: " + (Blockly.VERSION || "unknown"));
+      log("Java generator present: " + (Blockly.Java ? "YES" : "NO"));
+      log("Classroom output mode: trims runtime + wraps statements in main().");
+    }, 0);
+
+    window.addEventListener('resize', function () {
+      if (typeof Blockly.svgResize === 'function') Blockly.svgResize(workspace);
+    });
+
+    // Auto-placement for click-to-add
+    var nextX = 40, nextY = 40;
+    function placeBlock(block) {
+      block.initSvg();
+      block.render();
+      block.moveBy(nextX, nextY);
+      nextY += 70;
+      if (nextY > 420) { nextY = 40; nextX += 300; }
+      block.select();
+    }
+
+    // Compatible block creation for old/new Blockly
+    function createBlock(type) {
+      var block;
+      if (workspace.newBlock) {
+        block = workspace.newBlock(type);
+      } else if (Blockly.Block && Blockly.Block.obtain) {
+        block = Blockly.Block.obtain(workspace, type);
+      } else {
+        throw new Error("No supported block creation API found.");
+      }
+      placeBlock(block);
+      return block;
+    }
+
+    function safeAdd(type, fields) {
+      try {
+        if (!Blockly.Blocks || !Blockly.Blocks[type]) {
+          log("Block type not found: " + type);
+          return null;
+        }
+        var b = createBlock(type);
+        if (fields) {
+          for (var k in fields) {
+            try { b.setFieldValue(fields[k], k); } catch (e) {}
+          }
+        }
+        log("Added: " + type);
+        return b;
+      } catch (e) {
+        log("Add failed (" + type + "): " + e);
+        return null;
+      }
+    }
+
+    // Add IF/ELSE: controls_if with else branch enabled
+    function addIfElse() {
+      var b = safeAdd('controls_if');
+      if (!b) return;
+
+      try {
+        b.elseifCount_ = b.elseifCount_ || 0;
+        b.elseCount_ = 1;
+        if (typeof b.updateShape_ === 'function') b.updateShape_();
+        if (typeof b.initSvg === 'function') b.initSvg();
+        if (typeof b.render === 'function') b.render();
+        log("Updated controls_if to include ELSE.");
+      } catch (e) {
+        log("Could not auto-add ELSE. Use the if-block mutator (gear) if present.");
+      }
+    }
+
+    // Variables differ across versions
+    function safeAddVarSet() {
+      var candidates = ['variables_set', 'variables_set_dynamic'];
+      for (var i = 0; i < candidates.length; i++) {
+        if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
+      }
+      log("No variable SET block found.");
+      return null;
+    }
+
+    function safeAddVarGet() {
+      var candidates = ['variables_get', 'variables_get_dynamic'];
+      for (var i = 0; i < candidates.length; i++) {
+        if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
+      }
+      log("No variable GET block found.");
+      return null;
+    }
+
+    function safeAddVarChange() {
+      var candidates = ['math_change', 'variables_set'];
+      for (var i = 0; i < candidates.length; i++) {
+        if (Blockly.Blocks && Blockly.Blocks[candidates[i]]) return safeAdd(candidates[i]);
+      }
+      log("No variable change block found (math_change).");
+      return null;
+    }
+
+    function clearWorkspace() {
+      workspace.clear();
+      nextX = 40; nextY = 40;
+      document.getElementById('codeArea').value = '';
+      log("Cleared workspace.");
+    }
+
+    // Trim away giant helper/runtime code by starting at package or public class
+    function trimToFileStart(fullCode) {
+      if (!fullCode) return "";
+
+      var pkgIdx = fullCode.lastIndexOf("\npackage ");
+      if (pkgIdx === -1) {
+        if (fullCode.indexOf("package ") === 0) pkgIdx = 0;
+      } else {
+        pkgIdx = pkgIdx + 1;
+      }
+      if (pkgIdx !== -1) return fullCode.substring(pkgIdx).trim();
+
+      var clsIdx = fullCode.indexOf("public class ");
+      if (clsIdx !== -1) return fullCode.substring(clsIdx).trim();
+
+      return fullCode.trim();
+    }
+
+    function indentLines(text, spaces) {
+      var pad = "";
+      for (var i = 0; i < spaces; i++) pad += " ";
+      return text.split("\n").map(function(line) {
+        return line.trim().length ? (pad + line) : line;
+      }).join("\n");
+    }
+
+    // Wrap student statements into valid Java main() for classroom use
+    function wrapInMain(trimmedFile) {
+      if (!trimmedFile) return "";
+
+      var pkgLine = "";
+      var rest = trimmedFile;
+
+      var pkgMatch = rest.match(/^\s*package\s+[^;]+;\s*/);
+      if (pkgMatch) {
+        pkgLine = pkgMatch[0].trim();
+        rest = rest.substring(pkgMatch[0].length);
+      }
+
+      var classIdx = rest.indexOf("public class ");
+      var body = "";
+
+      if (classIdx !== -1) {
+        var openBrace = rest.indexOf("{", classIdx);
+        var closeBrace = rest.lastIndexOf("}");
+        if (openBrace !== -1 && closeBrace !== -1 && closeBrace > openBrace) {
+          body = rest.substring(openBrace + 1, closeBrace).trim();
+        } else {
+          body = rest.substring(classIdx).trim();
+        }
+      } else {
+        body = rest.trim();
+      }
+
+      body = body.replace(/^\s*{\s*/, "").replace(/\s*}\s*$/, "").trim();
+
+      var mainBody = body ? indentLines(body, 4) : "";
+
+      return (pkgLine ? (pkgLine + "\n\n") : "") +
+        "public class Main {\n" +
+        "  public static void main(String[] args) {\n" +
+        (mainBody ? (mainBody + "\n") : "") +
+        "  }\n" +
+        "}\n";
+    }
+
+    function generateJava() {
+      try {
+        if (!Blockly.Java) {
+          log("Blockly.Java is NOT defined. java_compressed.js may not be loading.");
+          return;
+        }
+        var full = Blockly.Java.workspaceToCode(workspace) || "";
+        var showFull = document.getElementById('toggleFull').checked;
+
+        if (showFull) {
+          document.getElementById('codeArea').value = full;
+          log("Generated FULL Java. chars=" + full.length);
+          return;
+        }
+
+        var trimmed = trimToFileStart(full);
+        var wrapped = wrapInMain(trimmed);
+
+        document.getElementById('codeArea').value = wrapped;
+        log("Generated classroom Java. Full chars=" + full.length + ", shown chars=" + wrapped.length);
+      } catch (e) {
+        log("Generate Java failed: " + e);
+      }
+    }
+
+    function downloadJava() {
+      if (!document.getElementById('codeArea').value.trim()) generateJava();
+
+      var contents = document.getElementById('codeArea').value || "";
+      if (!contents.trim()) {
+        log("Nothing to download yet. Add blocks and generate first.");
+        return;
+      }
+
+      var blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = "Main.java";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+
+      URL.revokeObjectURL(url);
+      log("Downloaded Main.java (" + contents.length + " chars).");
+    }
+
+    // ---- Sidebar wiring ----
+    document.getElementById('btnIf').addEventListener('click', function () { safeAdd('controls_if'); });
+    document.getElementById('btnIfElse').addEventListener('click', addIfElse);
+    document.getElementById('btnCompare').addEventListener('click', function () { safeAdd('logic_compare'); });
+    document.getElementById('btnAndOr').addEventListener('click', function () { safeAdd('logic_operation'); });
+    document.getElementById('btnNot').addEventListener('click', function () { safeAdd('logic_negate'); });
+    document.getElementById('btnBool').addEventListener('click', function () { safeAdd('logic_boolean'); });
+
+    document.getElementById('btnRepeat').addEventListener('click', function () { safeAdd('controls_repeat_ext'); });
+    document.getElementById('btnWhile').addEventListener('click', function () { safeAdd('controls_whileUntil'); });
+    document.getElementById('btnFor').addEventListener('click', function () { safeAdd('controls_for'); });
+    document.getElementById('btnBreakNA').addEventListener('click', function () {
+      log("Break/Continue blocks are not included in this basic setup.");
+    });
+
+    document.getElementById('btnNumber').addEventListener('click', function () { safeAdd('math_number', {NUM: '10'}); });
+    document.getElementById('btnAdd').addEventListener('click', function () { safeAdd('math_arithmetic', {OP: 'ADD'}); });
+    document.getElementById('btnSub').addEventListener('click', function () { safeAdd('math_arithmetic', {OP: 'MINUS'}); });
+    document.getElementById('btnMul').addEventListener('click', function () { safeAdd('math_arithmetic', {OP: 'MULTIPLY'}); });
+
+    document.getElementById('btnPrint').addEventListener('click', function () { safeAdd('text_print'); });
+    document.getElementById('btnText').addEventListener('click', function () { safeAdd('text'); });
+    document.getElementById('btnJoin').addEventListener('click', function () { safeAdd('text_join'); });
+    document.getElementById('btnLength').addEventListener('click', function () { safeAdd('text_length'); });
+
+    document.getElementById('btnVarSet').addEventListener('click', safeAddVarSet);
+    document.getElementById('btnVarGet').addEventListener('click', safeAddVarGet);
+    document.getElementById('btnVarInc').addEventListener('click', safeAddVarChange);
+    document.getElementById('btnVarCreate').addEventListener('click', function () {
+      log("Use 'Set Var' then rename the variable dropdown to create new names.");
+    });
+
+    document.getElementById('btnGen').addEventListener('click', generateJava);
+    document.getElementById('btnDownload').addEventListener('click', downloadJava);
+    document.getElementById('btnClear').addEventListener('click', clearWorkspace);
+  </script>
+
+</body>
+</html>
+
