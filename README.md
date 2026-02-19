@@ -11,13 +11,13 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 - python3
 - Terminal/PowerShell
 
-## Setup Commands (MacOS / Windows)
+## Setup Terminal Commands (MacOS / Windows)
+** Run these in order **
+1. git clone https://github.com/jpt5832/blockly-java-generator.git
+2. cd blockly-java-generator
+3. python3 -m http.server 8000
 
-- git clone https://github.com/jpt5832/blockly-java-generator.git
-- cd blockly-java-generator
-- python3 -m http.server 8000
-
-Open (after server has been started):
+4. Open (after server has been started):
 http://localhost:8000/demos/java_class/
 
 ## Features
