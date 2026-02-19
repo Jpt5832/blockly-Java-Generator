@@ -19,6 +19,7 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 3. python3 -m http.server 8000 (inside blockly-java-generator directory)
 4. Open in browser (after server has been started):
 http://localhost:8000/demos/java_class/
+** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C to stop server) **
 
 ## Features
 - Buttons-only block adding into environment
