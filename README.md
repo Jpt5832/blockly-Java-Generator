@@ -21,16 +21,16 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 http://localhost:8000/demos/java_class/
 
 ## Features
-- Buttons-only block adding
+- Buttons-only block adding into environment
 - Generate java program based off blocks added/connected in the environment
 - Trimmed Java output
 - Wrapped in public static void main(String[] args) (Main method)
-- Download Main.java
-- Buttons to center, zoom in, zoom out of environment
+- Ability to download Main.java
+- Buttons to center, zoom in/out of environment
 
 
 ## Author
-PSU student - Jayson Troxel
+PSU Cybersecurity student/intern - Jayson Troxel
 
 ## Credits
 https://github.com/toebes-extreme/blockly
