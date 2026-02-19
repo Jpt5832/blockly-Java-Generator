@@ -20,7 +20,7 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 4. Open in browser (after server has been started):
 http://localhost:8000/demos/java_class/
 
-- ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C to stop server) **
+- ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
 
 ## Features
 - Buttons-only block adding into environment
