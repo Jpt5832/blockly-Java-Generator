@@ -181,7 +181,21 @@
           <button id="btnRepeat">+ Repeat</button>
           <button id="btnWhile">+ While</button>
           <button id="btnFor">+ For</button>
-          <button id="btnBreakNA">+ (N/A)</button>
+          <button id="btnForEach">+ For Each</button>
+        </div>
+      </div>
+
+      <div class="group">
+        <h3>Lists</h3>
+        <div class="btnGrid">
+          <button id="btnListCreate">+ Create List</button>
+          <button id="btnListGet">+ Get Item</button>
+          <button id="btnListSet">+ Set Item</button>
+          <button id="btnListLen">+ Length</button>
+        </div>
+        <div class="tip">
+          Tip: Use <b>Create List</b> to make a list value, then plug it into the <b>For Each</b> block’s “in” slot
+          (or set it to a variable first).
         </div>
       </div>
 
@@ -369,6 +383,24 @@
       log("🧹 Cleared workspace.");
     }
 
+    // ✅ CRASH FIX: Blockly.Java.init() calls Variables.allVariablesTypes which crashes in your build
+    // (getOutput().slice on null). We don't need types for beginner output, so fail-safe to [].
+    function installVariablesTypeDiscoveryFix() {
+      if (!window.Blockly || !Blockly.Variables) return;
+      if (Blockly.Variables.__patchedAllVariablesTypes) return;
+
+      var orig = Blockly.Variables.allVariablesTypes;
+      Blockly.Variables.allVariablesTypes = function(ws) {
+        try {
+          return orig ? orig.call(this, ws) : [];
+        } catch (e) {
+          return [];
+        }
+      };
+
+      Blockly.Variables.__patchedAllVariablesTypes = true;
+    }
+
     // --- Runtime split (hide huge chunk) ---
     function splitStudentAndRuntime(fullCode) {
       if (!fullCode) return { student: "", runtime: "" };
@@ -459,6 +491,87 @@
       return s;
     }
 
+    // --- NEW: Simplify list initializations + numbers into beginner-friendly arrays ---
+    function simplifyListsAndNumbers(studentCode) {
+      if (!studentCode) return "";
+
+      var s = studentCode;
+
+      // Convert:
+      //   LinkedList X;
+      //   X = new LinkedList<>(Arrays.asList(10.0, 100.0));
+      // -> int[] X = {10, 100};
+      var re = /(?:LinkedList|ArrayList)\s+([A-Za-z_]\w*)\s*;\s*\1\s*=\s*new\s+(?:LinkedList|ArrayList)<>\s*\(\s*Arrays\.asList\(([\s\S]*?)\)\s*\)\s*;\s*/g;
+
+      s = s.replace(re, function(_, varName, valuesRaw) {
+        var parts = valuesRaw.split(",").map(function(p){ return p.trim(); }).filter(Boolean);
+
+        var isString = parts.some(function(v) { return /^".*"$/.test(v); });
+        var isDouble = parts.some(function(v) { return /\d+\.\d+/.test(v) && !/\.0+$/.test(v); });
+
+        var cleaned = parts.map(function(v) { return v.replace(/(\d+)\.0+\b/g, "$1"); });
+
+        var type = "int";
+        if (isString) type = "String";
+        else if (isDouble) type = "double";
+
+        return type + "[] " + varName + " = {" + cleaned.join(", ") + "};\n";
+      });
+
+      // ✅ IMPORTANT: Convert Var-style setObject(List) into array declaration:
+      //   item.setObject(new LinkedList<>(Arrays.asList(10, 100)));
+      // -> int[] item = {10, 100};
+      var reSetObj = /([A-Za-z_]\w*)\.setObject\(\s*new\s+(?:LinkedList|ArrayList)<>\s*\(\s*Arrays\.asList\(([\s\S]*?)\)\s*\)\s*\)\s*;\s*/g;
+
+      s = s.replace(reSetObj, function(_, varName, valuesRaw) {
+        var parts = valuesRaw.split(",").map(function(p){ return p.trim(); }).filter(Boolean);
+
+        var isString = parts.some(function(v) { return /^".*"$/.test(v); });
+        var isDouble = parts.some(function(v) { return /\d+\.\d+/.test(v) && !/\.0+$/.test(v); });
+
+        var cleaned = parts.map(function(v) { return v.replace(/(\d+)\.0+\b/g, "$1"); });
+
+        var type = "int";
+        if (isString) type = "String";
+        else if (isDouble) type = "double";
+
+        return type + "[] " + varName + " = {" + cleaned.join(", ") + "};\n";
+      });
+
+      // General cleanup: 10.0 -> 10
+      s = s.replace(/(\d+)\.0+\b/g, "$1");
+
+      // Replace .size() -> .length
+      s = s.replace(/([A-Za-z_]\w*)\.size\(\)/g, "$1.length");
+
+      // Replace .get(i) -> [i]
+      s = s.replace(/([A-Za-z_]\w*)\.get\(\s*([^)]+?)\s*\)/g, function(_, list, index) {
+        return list + "[" + index + "]";
+      });
+
+      // Remove (int)(...) style casts often used in indexes
+      s = s.replace(/\(int\)\s*\(([^)]+)\)/g, "$1");
+      s = s.replace(/\[\s*\(int\)\s*([^\]]+?)\s*\]/g, "[$1]");
+
+      // Remove .toString()
+      s = s.replace(/\.toString\(\)/g, "");
+
+      // Remove Var wrappers (student output)
+      // Var item = new Var(0);  -> remove entirely
+      s = s.replace(/Var\s+[A-Za-z_]\w*\s*=\s*new\s+Var\([^)]*\);\s*/g, "");
+
+      // item.setObject(X); -> item = X; (kept as a fallback if not a list)
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(([^)]+)\);/g, "$1 = $2;");
+
+      // item.cloneObject() -> item
+      s = s.replace(/([A-Za-z_]\w*)\.cloneObject\(\)/g, "$1");
+
+      // Force foreach header: Object i : ... -> int i : ...
+      s = s.replace(/for\s*\(\s*Object\s+([A-Za-z_]\w*)\s*:/g, "for (int $1 :");
+
+      return s.trim();
+    }
+
     function indentLines(text, spaces) {
       var pad = "";
       for (var i = 0; i < spaces; i++) pad += " ";
@@ -481,12 +594,65 @@
       );
     }
 
+    // 🔥 For-each override: simple intro Java foreach (while loops unchanged)
+    function installForEachNUKEFix() {
+      if (!window.Blockly || !Blockly.Generator || !Blockly.Java) return;
+
+      function fixedForEach(block) {
+        var varName = "item";
+        try {
+          var raw = block.getFieldValue('VAR');
+          if (raw && Blockly.Java.variableDB_ && Blockly.Variables) {
+            varName = Blockly.Java.variableDB_.getName(raw, Blockly.Variables.NAME_TYPE);
+          } else if (raw) {
+            varName = raw;
+          }
+        } catch (e) {}
+
+        var listCode = "list1";
+        try {
+          listCode = Blockly.Java.valueToCode(block, 'LIST', Blockly.Java.ORDER_NONE) || "list1";
+        } catch (e) {
+          listCode = "list1";
+        }
+
+        var body = "";
+        try {
+          body = Blockly.Java.statementToCode(block, 'DO') || "";
+        } catch (e) {
+          body = "";
+        }
+
+        // ✅ use int for beginner foreach
+        return 'for (int ' + varName + ' : ' + listCode + ') {\n' + body + '}\n';
+      }
+
+      Blockly.Java['controls_forEach'] = fixedForEach;
+      if (Blockly.Java.forBlock) Blockly.Java.forBlock['controls_forEach'] = fixedForEach;
+
+      if (!Blockly.Generator.prototype.__patchedForEachNuke) {
+        var orig = Blockly.Generator.prototype.blockToCode;
+        Blockly.Generator.prototype.blockToCode = function(block, opt_this) {
+          if (this && this.name_ === 'Java' && block && block.type === 'controls_forEach') {
+            return fixedForEach(block);
+          }
+          return orig.call(this, block, opt_this);
+        };
+        Blockly.Generator.prototype.__patchedForEachNuke = true;
+      }
+    }
+
+    // Keep your existing loop behavior (you asked while loops unchanged)
     function generateJava() {
       try {
         if (!Blockly.Java) {
           log("❌ Blockly.Java is NOT defined. java_compressed.js may not be loading.");
           return;
         }
+
+        // install patches
+        installVariablesTypeDiscoveryFix();
+        installForEachNUKEFix();
 
         var full = Blockly.Java.workspaceToCode(workspace) || "";
         var showFull = document.getElementById('toggleFull').checked;
@@ -498,19 +664,14 @@
         }
 
         var parts = splitStudentAndRuntime(full);
-        var student = studentify(parts.student);
+        var student = simplifyListsAndNumbers(studentify(parts.student));
         var wrapped = wrapInMain(student);
 
         document.getElementById('codeArea').value = wrapped;
-
         log("✅ Generated STUDENT-FRIENDLY code (runtime hidden).");
-        log("Full chars=" + full.length +
-            " | student raw chars=" + parts.student.length +
-            " | student cleaned chars=" + student.length +
-            " | shown chars=" + wrapped.length +
-            (parts.runtime ? (" | runtime hidden chars=" + parts.runtime.length) : ""));
       } catch (e) {
         log("❌ Generate Java failed: " + e);
+        if (e && e.stack) log("STACK:\n" + e.stack);
       }
     }
 
@@ -548,9 +709,13 @@
     document.getElementById('btnRepeat').addEventListener('click', function () { safeAdd('controls_repeat_ext'); });
     document.getElementById('btnWhile').addEventListener('click', function () { safeAdd('controls_whileUntil'); });
     document.getElementById('btnFor').addEventListener('click', function () { safeAdd('controls_for'); });
-    document.getElementById('btnBreakNA').addEventListener('click', function () {
-      log("ℹ️ Break/Continue blocks not included in this basic setup.");
-    });
+    document.getElementById('btnForEach').addEventListener('click', function () { safeAdd('controls_forEach'); });
+
+    // Lists
+    document.getElementById('btnListCreate').addEventListener('click', function () { safeAdd('lists_create_with'); });
+    document.getElementById('btnListGet').addEventListener('click', function () { safeAdd('lists_getIndex'); });
+    document.getElementById('btnListSet').addEventListener('click', function () { safeAdd('lists_setIndex'); });
+    document.getElementById('btnListLen').addEventListener('click', function () { safeAdd('lists_length'); });
 
     document.getElementById('btnNumber').addEventListener('click', function () { safeAdd('math_number', {NUM: '10'}); });
     document.getElementById('btnAdd').addEventListener('click', function () { safeAdd('math_arithmetic', {OP: 'ADD'}); });
