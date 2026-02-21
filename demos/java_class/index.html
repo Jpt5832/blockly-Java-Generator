@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Blockly → Java Generator v2.2</title>
+  <title>Blockly → Java Generator 2.32</title>
 
   <!-- Blockly Core -->
   <script src="../../blockly_compressed.js"></script>
@@ -145,7 +145,7 @@
 <body>
 
   <div id="header">
-    <h2>Blockly → Java Generator v2.2</h2>
+    <h2>Blockly → Java Generator 2.32</h2>
 
     <span class="toggle" title="Unchecked: show student code only. Checked: show full generator output (includes runtime).">
       <input type="checkbox" id="toggleFull">
@@ -629,29 +629,16 @@
       // Var item = new Var(0);  -> remove entirely
       s = s.replace(/Var\s+[A-Za-z_]\w*\s*=\s*new\s+Var\([^)]*\);\s*/g, "");
 
-      // ✅ FIXED: setObject(...) can contain nested parentheses; don't chop at first ')'
-      s = s.replace(
-        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*\+\s*1\s*\)\s*;/g,
-        "$1 = $2 + 1;"
-      );
-      s = s.replace(
-        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*-\s*1\s*\)\s*;/g,
-        "$1 = $2 - 1;"
-      );
-      s = s.replace(
-        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*\)\s*;/g,
-        "$1 = $2;"
-      );
+      // ✅ NEW: num1.setObject(num1 + 1); -> num1 = num1 + 1;
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*\+\s*1\s*\)\s*;/g, "$1 = $1 + 1;");
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*-\s*1\s*\)\s*;/g, "$1 = $1 - 1;");
 
-      // ✅ FIXED: make increments intro-friendly (handles extra parentheses)
-      s = s.replace(
-        /\b([A-Za-z_]\w*)\s*=\s*\(?\s*\1\s*\)?\s*\+\s*\(?\s*1\s*\)?\s*;/g,
-        "$1++;"
-      );
-      s = s.replace(
-        /\b([A-Za-z_]\w*)\s*=\s*\(?\s*\1\s*\)?\s*-\s*\(?\s*1\s*\)?\s*;/g,
-        "$1--;"
-      );
+      // ✅ NEW: generic x.setObject(anything); -> x = anything;
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*([^)]+?)\s*\)\s*;/g, "$1 = $2;");
+
+      // ✅ NEW: make increments intro-friendly: x = x + 1; -> x++;
+      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*\+\s*1\s*;/g, "$1++;");
+      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*-\s*1\s*;/g, "$1--;");
 
       // item.cloneObject() -> item
       s = s.replace(/([A-Za-z_]\w*)\.cloneObject\(\)/g, "$1");
@@ -676,6 +663,24 @@
       );
 
       return s.trim();
+    }
+
+    // ✅ FIX 1: Repair common missing ')' on print/println lines
+    function fixMissingParens(code) {
+      if (!code) return "";
+      var s = code;
+
+      // Fix: System.out.println(...; -> System.out.println(...);
+      // Fix: System.out.print(...;   -> System.out.print(...);
+      // Only affects lines that end with ';' and have NO ')' before it.
+      s = s.replace(
+        /(^|\n)(\s*System\.out\.(?:print|println)\()\s*([^\n)]*?)\s*;\s*$/gm,
+        function(_, lead, prefix, inside) {
+          return (lead || "\n") + prefix + inside + ");";
+        }
+      );
+
+      return s;
     }
 
     function indentLines(text, spaces) {
@@ -771,6 +776,10 @@
 
         var parts = splitStudentAndRuntime(full);
         var student = simplifyListsAndNumbers(studentify(parts.student));
+
+        // ✅ FIX 1 applied here (only student mode)
+        student = fixMissingParens(student);
+
         var wrapped = wrapInMain(student);
 
         document.getElementById('codeArea').value = wrapped;
