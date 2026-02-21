@@ -629,26 +629,37 @@
       // Var item = new Var(0);  -> remove entirely
       s = s.replace(/Var\s+[A-Za-z_]\w*\s*=\s*new\s+Var\([^)]*\);\s*/g, "");
 
-      // ✅ NEW: num1.setObject(num1 + 1); -> num1 = num1 + 1;
-      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*\+\s*1\s*\)\s*;/g, "$1 = $1 + 1;");
-      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*-\s*1\s*\)\s*;/g, "$1 = $1 - 1;");
+      // ✅ FIXED: setObject(...) can contain nested parentheses; don't chop at first ')'
+      s = s.replace(
+        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*\+\s*1\s*\)\s*;/g,
+        "$1 = $2 + 1;"
+      );
+      s = s.replace(
+        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*-\s*1\s*\)\s*;/g,
+        "$1 = $2 - 1;"
+      );
+      s = s.replace(
+        /([A-Za-z_]\w*)\.setObject\(\s*([\s\S]*?)\s*\)\s*;/g,
+        "$1 = $2;"
+      );
 
-      // ✅ NEW: generic x.setObject(anything); -> x = anything;
-      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*([^)]+?)\s*\)\s*;/g, "$1 = $2;");
-
-      // ✅ NEW: make increments intro-friendly: x = x + 1; -> x++;
-      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*\+\s*1\s*;/g, "$1++;");
-      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*-\s*1\s*;/g, "$1--;");
+      // ✅ FIXED: make increments intro-friendly (handles extra parentheses)
+      s = s.replace(
+        /\b([A-Za-z_]\w*)\s*=\s*\(?\s*\1\s*\)?\s*\+\s*\(?\s*1\s*\)?\s*;/g,
+        "$1++;"
+      );
+      s = s.replace(
+        /\b([A-Za-z_]\w*)\s*=\s*\(?\s*\1\s*\)?\s*-\s*\(?\s*1\s*\)?\s*;/g,
+        "$1--;"
+      );
 
       // item.cloneObject() -> item
       s = s.replace(/([A-Za-z_]\w*)\.cloneObject\(\)/g, "$1");
 
       // Force foreach header: Object i : ... -> int i : ...
       s = s.replace(/for\s*\(\s*Object\s+([A-Za-z_]\w*)\s*:/g, "for (int $1 :");
-      
 
-
-            // ✅ FINAL CLEANUP: if we created an array like "String[] item = ...",
+      // ✅ FINAL CLEANUP: if we created an array like "String[] item = ...",
       // remove leftover "LinkedList item;" / "ArrayList item;" lines.
       var arrayNames = {};
       var m;
