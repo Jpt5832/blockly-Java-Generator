@@ -12,7 +12,7 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 - Terminal/PowerShell
 - Modern browser (Firefox, Edge, Chrome)
 
-## Setup Terminal Commands (MacOS / Windows)
+## Setup Terminal Commands (MacOS / Windows/Linux)
 ** Run these in order **
 1. git clone https://github.com/jpt5832/blockly-java-generator.git
 2. cd blockly-java-generator
