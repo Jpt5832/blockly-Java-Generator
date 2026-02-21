@@ -41,6 +41,8 @@ v2.0 - Released 02/20/2026
   - Added support for lists
   - Added for-each (enhanced for) loop
 
+v2.2 - Various bug fixes with syntax errors
+
 
 ## Author
 PSU Cybersecurity student/intern - Jayson Troxel
