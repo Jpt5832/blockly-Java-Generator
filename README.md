@@ -22,6 +22,11 @@ http://localhost:8000/demos/java_class/
 
 - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
 
+5. Make sure to pull commits before starting (in case a new update was released)
+   Commands:
+   - cd ~/blockly-java-generator
+   - git pull origin main
+
 ## Features
 - Buttons-only block adding into environment
 - Generate java program based off blocks added/connected in the environment
