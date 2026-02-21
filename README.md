@@ -43,6 +43,8 @@ v2.0 - Released 02/20/2026
 
 v2.2 - Various bug fixes with syntax errors
 
+v2.32 - Syntax bug fix, added variable adding 1 shortcut (i++)
+
 
 ## Author
 PSU Cybersecurity student/intern - Jayson Troxel
