@@ -20,7 +20,7 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 4. Open in browser (after server has been started):
 http://localhost:8000/demos/java_class/
 
-- ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
+   - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
 
 5. Make sure to pull commits before starting (in case a new update was released)
    - Commands:
@@ -37,9 +37,9 @@ http://localhost:8000/demos/java_class/
 
 
 ## Updates
-V2.0 - Released 02/20/2026
+v2.0 - Released 02/20/2026
   - Added support for lists
-  - Added for-each (enhanced for loop) loop
+  - Added for-each (enhanced for) loop
 
 
 ## Author
