@@ -31,6 +31,12 @@ http://localhost:8000/demos/java_class/
 - Buttons to center, zoom in/out of environment
 
 
+## Updates
+V2.0 - Released 02/20/2026
+  - Added support for lists
+  - Added for-each (enhanced for loop) loop
+
+
 ## Author
 PSU Cybersecurity student/intern - Jayson Troxel
 
