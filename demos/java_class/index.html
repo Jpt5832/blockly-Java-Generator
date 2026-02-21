@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Blockly → Java (Buttons-Only Class Mode)</title>
+  <title>Blockly → Java Generator v2.2</title>
 
   <!-- Blockly Core -->
   <script src="../../blockly_compressed.js"></script>
@@ -145,7 +145,7 @@
 <body>
 
   <div id="header">
-    <h2>Blockly → Java (Buttons-Only Class Mode)</h2>
+    <h2>Blockly → Java Generator v2.2</h2>
 
     <span class="toggle" title="Unchecked: show student code only. Checked: show full generator output (includes runtime).">
       <input type="checkbox" id="toggleFull">
@@ -474,6 +474,21 @@
       s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.equals\(\s*([^)]+?)\s*\)/g,
                     "($1 == $2)");
 
+      // ✅ NEW: compareTo patterns -> beginner comparisons
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.compareTo\(\s*([^)]+?)\s*\)\s*>\s*0/g,
+                    "($1 > $2)");
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.compareTo\(\s*([^)]+?)\s*\)\s*<\s*0/g,
+                    "($1 < $2)");
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.compareTo\(\s*([^)]+?)\s*\)\s*>=\s*0/g,
+                    "($1 >= $2)");
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.compareTo\(\s*([^)]+?)\s*\)\s*<=\s*0/g,
+                    "($1 <= $2)");
+      s = s.replace(/Var\.valueOf\(\s*([A-Za-z_]\w*)\s*\)\.compareTo\(\s*([^)]+?)\s*\)\s*==\s*0/g,
+                    "($1 == $2)");
+
+      // Optional: remove (( ... )) noise
+      s = s.replace(/\(\(\s*/g, "(").replace(/\s*\)\)/g, ")");
+
       // Remove .toString() on string literals: "hi".toString() -> "hi"
       s = s.replace(/"([^"\\]*(\\.[^"\\]*)*)"\.toString\(\)/g, "\"$1\"");
 
@@ -491,52 +506,106 @@
       return s;
     }
 
-    // --- NEW: Simplify list initializations + numbers into beginner-friendly arrays ---
+    // --- UPDATED: Simplify list initializations + numbers into beginner-friendly arrays ---
+    // (ONLY this function changed vs your original)
     function simplifyListsAndNumbers(studentCode) {
       if (!studentCode) return "";
 
       var s = studentCode;
 
-      // Convert:
-      //   LinkedList X;
-      //   X = new LinkedList<>(Arrays.asList(10.0, 100.0));
-      // -> int[] X = {10, 100};
-      var re = /(?:LinkedList|ArrayList)\s+([A-Za-z_]\w*)\s*;\s*\1\s*=\s*new\s+(?:LinkedList|ArrayList)<>\s*\(\s*Arrays\.asList\(([\s\S]*?)\)\s*\)\s*;\s*/g;
+      // ---- helpers ----
+      function splitArgs(argStr) {
+        // split by commas but keep quoted strings together
+        // matches either "...." or non-comma runs
+        var re = /"([^"\\]|\\.)*"|[^,]+/g;
+        var out = [];
+        var m;
+        while ((m = re.exec(argStr)) !== null) {
+          var part = (m[0] || "").trim();
+          if (part) out.push(part);
+        }
+        return out;
+      }
 
-      s = s.replace(re, function(_, varName, valuesRaw) {
-        var parts = valuesRaw.split(",").map(function(p){ return p.trim(); }).filter(Boolean);
+      function unwrapValue(v) {
+        var x = v.trim();
 
-        var isString = parts.some(function(v) { return /^".*"$/.test(v); });
-        var isDouble = parts.some(function(v) { return /\d+\.\d+/.test(v) && !/\.0+$/.test(v); });
+        // unwrap common wrappers used by this fork
+        // Var.valueOf( ... ) -> ...
+        x = x.replace(/^Var\.valueOf\(\s*([\s\S]*?)\s*\)$/g, "$1");
 
-        var cleaned = parts.map(function(v) { return v.replace(/(\d+)\.0+\b/g, "$1"); });
+        // new Var( ... ) -> ...
+        x = x.replace(/^new\s+Var\(\s*([\s\S]*?)\s*\)$/g, "$1");
 
-        var type = "int";
-        if (isString) type = "String";
-        else if (isDouble) type = "double";
+        // cloneObject() noise
+        x = x.replace(/\.cloneObject\(\)\s*$/g, "");
 
-        return type + "[] " + varName + " = {" + cleaned.join(", ") + "};\n";
+        // "hi".toString() -> "hi"
+        x = x.replace(/"([^"\\]*(\\.[^"\\]*)*)"\.toString\(\)/g, "\"$1\"");
+
+        // 10.0 -> 10 (only .0... forms)
+        x = x.replace(/(\d+)\.0+\b/g, "$1");
+
+        return x.trim();
+      }
+
+      function inferArrayType(values) {
+        // If ANY quoted string -> String[]
+        for (var i = 0; i < values.length; i++) {
+          if (/^".*"$/.test(values[i])) return "String";
+        }
+        // If any decimal (not just .0 which we already stripped) -> double[]
+        for (var j = 0; j < values.length; j++) {
+          if (/\d+\.\d+/.test(values[j])) return "double";
+        }
+        return "int";
+      }
+
+      function buildArrayDecl(varName, valuesRaw) {
+        var parts = splitArgs(valuesRaw).map(unwrapValue).filter(Boolean);
+        if (!parts.length) return null;
+
+        var type = inferArrayType(parts);
+        return type + "[] " + varName + " = {" + parts.join(", ") + "};\n";
+      }
+
+      function removeListDeclIfPresent(code, varName) {
+        // remove "LinkedList name;" / "ArrayList name;" (optionally with generics + java.util)
+        var declRe = new RegExp(
+          "(?:^|\\n)\\s*(?:(?:java\\.util\\.)?(?:LinkedList|ArrayList))(?:\\s*<[^>]*>)?\\s+"
+            + varName
+            + "\\s*;\\s*",
+          "g"
+        );
+        return code.replace(declRe, "\n");
+      }
+
+      // ---- 1) Convert assignments like:
+      // test = new LinkedList<>(Arrays.asList(...));
+      // test = Arrays.asList(...);
+      // test = new ArrayList<>(java.util.Arrays.asList(...));
+      var assignRe = /(^|\n)\s*([A-Za-z_]\w*)\s*=\s*(?:new\s+(?:java\.util\.)?(?:LinkedList|ArrayList)(?:\s*<[^>]*>)?\s*\(\s*)?(?:(?:java\.util\.)?Arrays)\.asList\s*\(\s*([\s\S]*?)\s*\)\s*\)?\s*;\s*/g;
+
+      s = s.replace(assignRe, function (match, lead, varName, valuesRaw) {
+        s = removeListDeclIfPresent(s, varName);
+        var decl = buildArrayDecl(varName, valuesRaw);
+        if (!decl) return match; // fallback if parsing failed
+        return (lead || "\n") + decl;
       });
 
-      // ✅ IMPORTANT: Convert Var-style setObject(List) into array declaration:
-      //   item.setObject(new LinkedList<>(Arrays.asList(10, 100)));
-      // -> int[] item = {10, 100};
-      var reSetObj = /([A-Za-z_]\w*)\.setObject\(\s*new\s+(?:LinkedList|ArrayList)<>\s*\(\s*Arrays\.asList\(([\s\S]*?)\)\s*\)\s*\)\s*;\s*/g;
+      // ---- 2) Convert setObject(...) patterns like:
+      // test.setObject(new LinkedList<>(Arrays.asList(...)));
+      // test.setObject(Arrays.asList(...));
+      var setObjRe = /(^|\n)\s*([A-Za-z_]\w*)\.setObject\(\s*(?:new\s+(?:java\.util\.)?(?:LinkedList|ArrayList)(?:\s*<[^>]*>)?\s*\(\s*)?(?:(?:java\.util\.)?Arrays)\.asList\s*\(\s*([\s\S]*?)\s*\)\s*\)?\s*\)\s*;\s*/g;
 
-      s = s.replace(reSetObj, function(_, varName, valuesRaw) {
-        var parts = valuesRaw.split(",").map(function(p){ return p.trim(); }).filter(Boolean);
-
-        var isString = parts.some(function(v) { return /^".*"$/.test(v); });
-        var isDouble = parts.some(function(v) { return /\d+\.\d+/.test(v) && !/\.0+$/.test(v); });
-
-        var cleaned = parts.map(function(v) { return v.replace(/(\d+)\.0+\b/g, "$1"); });
-
-        var type = "int";
-        if (isString) type = "String";
-        else if (isDouble) type = "double";
-
-        return type + "[] " + varName + " = {" + cleaned.join(", ") + "};\n";
+      s = s.replace(setObjRe, function (match, lead, varName, valuesRaw) {
+        s = removeListDeclIfPresent(s, varName);
+        var decl = buildArrayDecl(varName, valuesRaw);
+        if (!decl) return match;
+        return (lead || "\n") + decl;
       });
+
+      // ---- Existing cleanups you already had (kept) ----
 
       // General cleanup: 10.0 -> 10
       s = s.replace(/(\d+)\.0+\b/g, "$1");
@@ -545,7 +614,7 @@
       s = s.replace(/([A-Za-z_]\w*)\.size\(\)/g, "$1.length");
 
       // Replace .get(i) -> [i]
-      s = s.replace(/([A-Za-z_]\w*)\.get\(\s*([^)]+?)\s*\)/g, function(_, list, index) {
+      s = s.replace(/([A-Za-z_]\w*)\.get\(\s*([^)]+?)\s*\)/g, function (_, list, index) {
         return list + "[" + index + "]";
       });
 
@@ -560,14 +629,40 @@
       // Var item = new Var(0);  -> remove entirely
       s = s.replace(/Var\s+[A-Za-z_]\w*\s*=\s*new\s+Var\([^)]*\);\s*/g, "");
 
-      // item.setObject(X); -> item = X; (kept as a fallback if not a list)
-      s = s.replace(/([A-Za-z_]\w*)\.setObject\(([^)]+)\);/g, "$1 = $2;");
+      // ✅ NEW: num1.setObject(num1 + 1); -> num1 = num1 + 1;
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*\+\s*1\s*\)\s*;/g, "$1 = $1 + 1;");
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*-\s*1\s*\)\s*;/g, "$1 = $1 - 1;");
+
+      // ✅ NEW: generic x.setObject(anything); -> x = anything;
+      s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*([^)]+?)\s*\)\s*;/g, "$1 = $2;");
+
+      // ✅ NEW: make increments intro-friendly: x = x + 1; -> x++;
+      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*\+\s*1\s*;/g, "$1++;");
+      s = s.replace(/\b([A-Za-z_]\w*)\s*=\s*\1\s*-\s*1\s*;/g, "$1--;");
 
       // item.cloneObject() -> item
       s = s.replace(/([A-Za-z_]\w*)\.cloneObject\(\)/g, "$1");
 
       // Force foreach header: Object i : ... -> int i : ...
       s = s.replace(/for\s*\(\s*Object\s+([A-Za-z_]\w*)\s*:/g, "for (int $1 :");
+      
+
+
+            // ✅ FINAL CLEANUP: if we created an array like "String[] item = ...",
+      // remove leftover "LinkedList item;" / "ArrayList item;" lines.
+      var arrayNames = {};
+      var m;
+      var arrRe = /^\s*(?:int|double|String)\s*\[\]\s+([A-Za-z_]\w*)\s*=/gm;
+      while ((m = arrRe.exec(s)) !== null) {
+        arrayNames[m[1]] = true;
+      }
+
+      s = s.replace(
+        /^\s*(?:java\.util\.)?(?:LinkedList|ArrayList)(?:\s*<[^>]*>)?\s+([A-Za-z_]\w*)\s*;\s*$/gmi,
+        function (line, name) {
+          return arrayNames[name] ? "" : line;
+        }
+      );
 
       return s.trim();
     }
