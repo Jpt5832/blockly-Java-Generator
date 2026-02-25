@@ -14,14 +14,24 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 - Modern browser (Firefox, Edge, Chrome)
 
 ## First Time Setup Terminal Commands (MacOS/Windows/Linux)
-** Run these in order **
-1. git clone https://github.com/jpt5832/blockly-java-generator.git
-2. cd blockly-java-generator
-3. python3 -m http.server 8000 (start http server inside blockly-java-generator directory)
-4. Open in browser (after server has been started):
-http://localhost:8000/demos/java_class/
 
-   - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
+There are two main ways to "install" this tool
+
+A) MUST do regardless from Command Line
+   1. git clone https://github.com/jpt5832/blockly-java-generator.git
+
+1) Run Strictly from Command Line:
+   - cd ~/blockly-java-generator
+   - python3 -m http.server 8000 (start http server inside blockly-java-generator directory)
+   - Open in browser (after server has been started): http://localhost:8000/demos/java_class/
+      - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
+    
+2) Run from GUI
+    - From the Command Line run: mv blockly-java-generator ~/Desktop (change ~/Desktop to whatever preferred location)
+    - Open the newly added blockly-java-generator on your Desktop or whatever location you specified
+    - Navigate to /demos/java_class directory
+         - You should only see index.html file in the java_class folder
+     - Double-click index.html to load the tool!
 
 ## Using the Tool Again
 There are multiple ways to run this Tool again!
