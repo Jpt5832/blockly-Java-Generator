@@ -24,11 +24,23 @@ http://localhost:8000/demos/java_class/
    - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
 
 ## Using the Tool Again
-Make sure to pull commits before starting (in case a new update was released)
+There are multiple ways to run this Tool again!
+
+A) Make sure to pull commits before starting (in case a new update was released)
    - Commands:
       - cd ~/blockly-java-generator
       - git pull origin main
-      - python3 -m http.server 8000 (start inside blockly-java-generator directory)
+
+1) Start Tool again from the Command Line
+    - cd ~/blockly-java-generator
+    - python3 -m http.server 8000 (start inside blockly-java-generator directory)
+  
+2) Start directly by opening html file
+    - From command line: mv blockly-java-generator ~/Desktop (this copies the files to the desktop)
+    - Open the newly added blockly-java-generator on your Desktop
+    - Navigate to /demos/java_class
+         - You should only see index.html file in the java_class folder
+     - Double-click index.html to load the tool!
 
 ## Features
 - Buttons-only block adding into environment
