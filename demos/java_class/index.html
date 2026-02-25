@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Blockly → Java Generator 2.32</title>
+  <title>Blockly → Java Generator 3.00</title>
 
   <!-- Blockly Core -->
   <script src="../../blockly_compressed.js"></script>
@@ -145,7 +145,7 @@
 <body>
 
   <div id="header">
-    <h2>Blockly → Java Generator 2.32</h2>
+    <h2>Blockly → Java Generator 3.00</h2>
 
     <span class="toggle" title="Unchecked: show student code only. Checked: show full generator output (includes runtime).">
       <input type="checkbox" id="toggleFull">
@@ -495,10 +495,6 @@
       // Remove access modifiers at start of lines (so declarations can live in main if needed)
       s = s.replace(/^\s*(public|private|protected)\s+/gmi, "");
 
-      // Remove any stray lone braces lines
-      s = s.replace(/^\s*\{\s*$/gmi, "");
-      s = s.replace(/^\s*\}\s*$/gmi, "");
-
       // Clean up extra blank lines
       s = s.replace(/^\s*\n/gm, "");
       s = s.trim();
@@ -618,9 +614,23 @@
         return list + "[" + index + "]";
       });
 
+      // ✅ NEW: Convert chained list-access patterns produced by runtime wrappers
+      // L1.getObjectAsList().get((int)0) -> L1[0]
+      s = s.replace(/([A-Za-z_]\w*)\.getObjectAsList\(\)\.get\(\s*(?:\(\s*int\s*\)\s*)?([^)]+?)\s*\)/g,
+                    "$1[$2]");
+
+      // 🔥 ADD THIS LINE RIGHT HERE
+      s = s.replace(/\[([^\]]+?)\)\]/g, "[$1]");
+
+      // L1.getObjectAsList().size() -> L1.length
+      s = s.replace(/([A-Za-z_]\w*)\.getObjectAsList\(\)\.size\(\)/g, "$1.length");
+
       // Remove (int)(...) style casts often used in indexes
       s = s.replace(/\(int\)\s*\(([^)]+)\)/g, "$1");
       s = s.replace(/\[\s*\(int\)\s*([^\]]+?)\s*\]/g, "[$1]");
+
+      // ✅ NEW: Fix weird bracket casts like L1[int]0 -> L1[0]
+      s = s.replace(/\[\s*int\s*\]\s*([^\]\s;]+)/g, "[$1]");
 
       // Remove .toString()
       s = s.replace(/\.toString\(\)/g, "");
@@ -628,6 +638,16 @@
       // Remove Var wrappers (student output)
       // Var item = new Var(0);  -> remove entirely
       s = s.replace(/Var\s+[A-Za-z_]\w*\s*=\s*new\s+Var\([^)]*\);\s*/g, "");
+
+      // ✅ NEW: Convert Var numeric wrappers in conditions/loops
+      // i.getObjectAsDouble() -> i
+      s = s.replace(/([A-Za-z_]\w*)\.getObjectAsDouble\(\)/g, "$1");
+      s = s.replace(/([A-Za-z_]\w*)\.getObjectAsInt\(\)/g, "$1");
+      s = s.replace(/([A-Za-z_]\w*)\.getObjectAsString\(\)/g, "$1");
+
+      // ✅ NEW: Convert incrementObject(1) -> i++
+      s = s.replace(/([A-Za-z_]\w*)\.incrementObject\(\s*1\s*\)/g, "$1++");
+      s = s.replace(/([A-Za-z_]\w*)\.incrementObject\(\s*-1\s*\)/g, "$1--");
 
       // ✅ NEW: num1.setObject(num1 + 1); -> num1 = num1 + 1;
       s = s.replace(/([A-Za-z_]\w*)\.setObject\(\s*\1\s*\+\s*1\s*\)\s*;/g, "$1 = $1 + 1;");
@@ -646,6 +666,13 @@
       // Force foreach header: Object i : ... -> int i : ...
       s = s.replace(/for\s*\(\s*Object\s+([A-Za-z_]\w*)\s*:/g, "for (int $1 :");
 
+      // ✅ NEW: Fix for(...) headers missing ')' before '{'
+      s = s.replace(/^\s*for\s*\(([^\n)]*?)\s*\{\s*$/gm, function(line, inside) {
+        // if this already contains a ')' somehow, leave it alone; otherwise close it.
+        if (inside.indexOf(")") !== -1) return "for (" + inside + " {";
+        return "for (" + inside + ") {";
+      });
+
       // ✅ FINAL CLEANUP: if we created an array like "String[] item = ...",
       // remove leftover "LinkedList item;" / "ArrayList item;" lines.
       var arrayNames = {};
@@ -662,25 +689,163 @@
         }
       );
 
+      // 🔥 FINAL BRACKET CLEANUP:
+      // Fix any stray ')' that ended up inside array brackets: L1[0)] -> L1[0]
+      s = s.replace(/\[\s*([^\]]*?)\s*\)\s*\]/g, "[$1]");
+
+
       return s.trim();
     }
 
-    // ✅ FIX 1: Repair common missing ')' on print/println lines
+    // ✅ FIX 1: Repair missing ')' for System.out.print/println lines (balances parentheses)
     function fixMissingParens(code) {
       if (!code) return "";
-      var s = code;
+      var lines = code.split("\n");
 
-      // Fix: System.out.println(...; -> System.out.println(...);
-      // Fix: System.out.print(...;   -> System.out.print(...);
-      // Only affects lines that end with ';' and have NO ')' before it.
-      s = s.replace(
-        /(^|\n)(\s*System\.out\.(?:print|println)\()\s*([^\n)]*?)\s*;\s*$/gm,
-        function(_, lead, prefix, inside) {
-          return (lead || "\n") + prefix + inside + ");";
+      function countChar(str, ch) {
+        var c = 0;
+        for (var i = 0; i < str.length; i++) if (str.charAt(i) === ch) c++;
+        return c;
+      }
+
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        // Only touch System.out.print/println lines that end with ';'
+        if (!/^\s*System\.out\.(print|println)\(/.test(line)) continue;
+        if (!/;\s*$/.test(line)) continue;
+
+        var open = countChar(line, "(");
+        var close = countChar(line, ")");
+        if (close < open) {
+          // add missing ')' before ';'
+          var missing = open - close;
+          lines[i] = line.replace(/;\s*$/, Array(missing + 1).join(")") + ";");
+        }
+      }
+
+      return lines.join("\n");
+    }
+
+    // ✅ FIX 2: Repair broken if conditions like:
+    // if (A) || (B) {   →   if ((A) || (B)) {
+    function fixIfOrAnd(code) {
+      if (!code) return "";
+      return code.replace(
+        /if\s*\(\s*([^)]+?)\s*\)\s*(\|\||&&)\s*\(\s*([^)]+?)\s*\)\s*\{/g,
+        "if (($1) $2 ($3)) {"
+      );
+    }
+
+    // ✅ FIX 3: Repair foreach headers missing closing ')'
+    // for (int i : L1 {   →   for (int i : L1) {
+    function fixForEachHeader(code) {
+      if (!code) return "";
+      return code.replace(
+        /for\s*\(\s*(int|double|String|Object)\s+([A-Za-z_]\w*)\s*:\s*([^\n\)]*?)\s*\{\s*$/gm,
+        function(_, t, v, listExpr) {
+          return "for (" + t + " " + v + " : " + listExpr.trim() + ") {";
         }
       );
+    }
 
-      return s;
+    // ✅ FIX 4: Auto-declare missing vars + fix foreach type for known arrays (String[]/int[]/double[])
+    function autoDeclareVarsAndFixForEachTypes(code) {
+      if (!code) return "";
+
+      var lines = code.split("\n");
+
+      // Track declared vars + array types we can detect (int[]/double[]/String[])
+      var declared = Object.create(null);
+      var arrayType = Object.create(null);
+
+      function markDeclared(name) { declared[name] = true; }
+
+      // 1) Scan for existing declarations + array declarations
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i];
+
+        // int x = ...; / double x; / String x = ...; / boolean x = ...;
+        var decl = line.match(/^\s*(int|double|String|boolean)\s+([A-Za-z_]\w*)\b/);
+        if (decl) markDeclared(decl[2]);
+
+        // int[] L1 = {...}; etc
+        var arr = line.match(/^\s*(int|double|String)\s*\[\]\s+([A-Za-z_]\w*)\b/);
+        if (arr) {
+          markDeclared(arr[2]);
+          arrayType[arr[2]] = arr[1]; // L1 -> "String"
+        }
+      }
+
+      // 2) Collect missing var declarations from simple assignments: name = rhs;
+      var needed = []; // {name, type}
+      var neededMap = Object.create(null);
+
+      function inferType(rhs) {
+        var r = (rhs || "").trim();
+
+        // String literal
+        if (/^".*"$/.test(r)) return "String";
+
+        // boolean literal
+        if (/^(true|false)\b/.test(r)) return "boolean";
+
+        // number: decimal -> double, otherwise int
+        if (/^-?\d+\.\d+/.test(r)) return "double";
+        if (/^-?\d+\b/.test(r)) return "int";
+
+        // fallback: int (keeps it simple for beginners)
+        return "int";
+      }
+
+      for (var j = 0; j < lines.length; j++) {
+        var l = lines[j];
+
+        // Skip lines that are already declarations
+        if (/^\s*(int|double|String|boolean)\b/.test(l)) continue;
+
+        // Match: varName = something;
+        var m = l.match(/^\s*([A-Za-z_]\w*)\s*=\s*(.+?)\s*;\s*$/);
+        if (!m) continue;
+
+        var name = m[1];
+        var rhs = m[2];
+
+        // If not declared already, add a declaration
+        if (!declared[name] && !neededMap[name]) {
+          var t = inferType(rhs);
+          needed.push({ name: name, type: t });
+          neededMap[name] = true;
+          markDeclared(name);
+        }
+      }
+
+      // 3) Fix foreach var type using known array types
+      // for (int x : L1)  where L1 is String[] -> for (String x : L1)
+      for (var k = 0; k < lines.length; k++) {
+        var f = lines[k].match(/^\s*for\s*\(\s*(int|double|String|Object)\s+([A-Za-z_]\w*)\s*:\s*([A-Za-z_]\w*)\s*\)\s*\{\s*$/);
+        if (f) {
+          var listName = f[3];
+          var t2 = arrayType[listName];
+          if (t2 && t2 !== f[1]) {
+            lines[k] = lines[k].replace(/for\s*\(\s*(int|double|String|Object)/, "for (" + t2);
+          }
+        }
+      }
+
+      // 4) Inject declarations at the top (before first real statement)
+      if (needed.length) {
+        var insertAt = 0;
+        while (insertAt < lines.length && lines[insertAt].trim() === "") insertAt++;
+
+        var declLines = needed.map(function(v) {
+          return v.type + " " + v.name + ";";
+        });
+
+        lines.splice(insertAt, 0, declLines.join("\n"));
+      }
+
+      return lines.join("\n");
     }
 
     function indentLines(text, spaces) {
@@ -753,42 +918,54 @@
       }
     }
 
-    // Keep your existing loop behavior (you asked while loops unchanged)
-    function generateJava() {
-      try {
-        if (!Blockly.Java) {
-          log("❌ Blockly.Java is NOT defined. java_compressed.js may not be loading.");
-          return;
-        }
+  function generateJava() {
+try {
+if (!Blockly.Java) {
+log("❌ Blockly.Java is NOT defined. java_compressed.js may not be loading.");
+return;
+}
 
-        // install patches
-        installVariablesTypeDiscoveryFix();
-        installForEachNUKEFix();
+installVariablesTypeDiscoveryFix();
+installForEachNUKEFix();
 
-        var full = Blockly.Java.workspaceToCode(workspace) || "";
-        var showFull = document.getElementById('toggleFull').checked;
+var full = Blockly.Java.workspaceToCode(workspace) || "";
+var showFull = document.getElementById('toggleFull').checked;
 
-        if (showFull) {
-          document.getElementById('codeArea').value = full;
-          log("✅ Generated FULL output (includes runtime). chars=" + full.length);
-          return;
-        }
+if (showFull) {
+document.getElementById('codeArea').value = full;
+log("✅ Generated FULL output (includes runtime). chars=" + full.length);
+return;
+}
 
-        var parts = splitStudentAndRuntime(full);
-        var student = simplifyListsAndNumbers(studentify(parts.student));
+var parts = splitStudentAndRuntime(full);
 
-        // ✅ FIX 1 applied here (only student mode)
-        student = fixMissingParens(student);
+// 🔥 CORRECTED ORDER
+var student = studentify(parts.student);
 
-        var wrapped = wrapInMain(student);
+// Structural repairs FIRST
+//student = fixMissingParens(student);
+student = fixIfOrAnd(student);
+student = fixForEachHeader(student);
 
-        document.getElementById('codeArea').value = wrapped;
-        log("✅ Generated STUDENT-FRIENDLY code (runtime hidden).");
-      } catch (e) {
-        log("❌ Generate Java failed: " + e);
-        if (e && e.stack) log("STACK:\n" + e.stack);
-      }
-    }
+// THEN simplify runtime wrappers
+student = simplifyListsAndNumbers(student);
+
+student = fixMissingParens(student);
+
+
+// THEN declarations & foreach typing
+student = autoDeclareVarsAndFixForEachTypes(student);
+
+var wrapped = wrapInMain(student);
+
+document.getElementById('codeArea').value = wrapped;
+log("✅ Generated STUDENT-FRIENDLY code (runtime hidden).");
+} catch (e) {
+log("❌ Generate Java failed: " + e);
+if (e && e.stack) log("STACK:\n" + e.stack);
+}
+}
+
 
     function downloadJava() {
       if (!document.getElementById('codeArea').value.trim()) generateJava();
