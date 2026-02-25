@@ -1,6 +1,7 @@
 # Blockly Java Programming Generator 
 
-A modified version of Blockly configured for introductory Java programming courses. This tool is a great way to visually learn how Java programming works.
+A modified version of Blockly configured for introductory Java programming courses. This tool is a great way to visually learn how Java programming works. Intended as an educational tool for all introductory level Java programmers!
+
 
 ## Purpose
 This version adds Java functionality to Blockly. Simple way to learn Java basics and generate java code.
@@ -12,25 +13,27 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 - Terminal/PowerShell
 - Modern browser (Firefox, Edge, Chrome)
 
-## Setup Terminal Commands (MacOS / Windows/Linux)
+## First Time Setup Terminal Commands (MacOS/Windows/Linux)
 ** Run these in order **
 1. git clone https://github.com/jpt5832/blockly-java-generator.git
 2. cd blockly-java-generator
-3. python3 -m http.server 8000 (inside blockly-java-generator directory)
+3. python3 -m http.server 8000 (start http server inside blockly-java-generator directory)
 4. Open in browser (after server has been started):
 http://localhost:8000/demos/java_class/
 
    - ** Keep local HTTP server running until you are finished using the tool. Press Ctrl + C inside the terminal to stop server **
 
-5. Make sure to pull commits before starting (in case a new update was released)
+## Using the Tool Again
+Make sure to pull commits before starting (in case a new update was released)
    - Commands:
       - cd ~/blockly-java-generator
       - git pull origin main
+      - python3 -m http.server 8000 (start inside blockly-java-generator directory)
 
 ## Features
 - Buttons-only block adding into environment
 - Generate java program based off blocks added/connected in the environment
-- Trimmed Java output
+- Trimmed clean Java output
 - Wrapped in public static void main(String[] args) (Main method)
 - Ability to download Main.java
 - Buttons to center, zoom in/out of environment
@@ -44,6 +47,14 @@ v2.0 - Released 02/20/2026
 v2.2 - Various bug fixes with syntax errors
 
 v2.32 - Syntax bug fix, added variable adding 1 shortcut (i++)
+
+v3.00 - Huge bug fix update! - Released 02/25/2026
+  - Fixed a ton of syntax errors for all loops
+  - ending curly braces print/format properly
+  - Lists length / get list values implemented correctly
+  - Variables initate as intended
+  - All loops & if/if-else statements work in conjunction to each other
+  - Fixed Java code output
 
 
 ## Author
