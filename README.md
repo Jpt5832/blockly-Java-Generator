@@ -17,8 +17,9 @@ This version adds Java functionality to Blockly. Simple way to learn Java basics
 
 There are two main ways to "install" this tool
 
-A) MUST do regardless from Command Line
-   1. git clone https://github.com/jpt5832/blockly-java-generator.git
+A) MUST do first time regardless from Command Line (clone command)
+   - git clone https://github.com/jpt5832/blockly-java-generator.git
+     
 
 1) Run Strictly from Command Line:
    - cd ~/blockly-java-generator
@@ -31,7 +32,7 @@ A) MUST do regardless from Command Line
     - Open the newly added blockly-java-generator on your Desktop or whatever location you specified
     - Navigate to /demos/java_class directory
          - You should only see index.html file in the java_class folder
-     - Double-click index.html to load the tool!
+     - Double-click the index.html file in the java_class folder to load the tool!
 
 ## Using the Tool Again
 There are multiple ways to run this Tool again!
